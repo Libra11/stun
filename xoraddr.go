@@ -13,6 +13,7 @@ import (
 	"github.com/pion/transport/v2/utils/xor"
 )
 
+// RFC 5389 Section 15.1
 const (
 	familyIPv4 uint16 = 0x01
 	familyIPv6 uint16 = 0x02
@@ -64,12 +65,18 @@ func (a XORMappedAddress) AddToAs(m *Message, t AttrType) error {
 	} else if len(ip) != net.IPv4len {
 		return ErrBadIPLength
 	}
+	// RFC 5389 Section 15.1 and 15.2
 	value := make([]byte, 32+128)
-	value[0] = 0 // first 8 bits are zeroes
+	// MAPPED-ADDRESS previous 8 bits are zeroes
+	value[0] = 0
 	xorValue := make([]byte, net.IPv6len)
+	// xorValue length is 16 bytes, TransactionID length is 12 bytes
+	// xorValue = 4 bytes of magic cookie + 12 bytes of TransactionID
 	copy(xorValue[4:], m.TransactionID[:])
 	bin.PutUint32(xorValue[0:4], magicCookie)
 	bin.PutUint16(value[0:2], family)
+	// X-Port is computed by taking the mapped port in host byte order,
+	// XOR'ing it with the most significant 16 bits of the magic cookie
 	bin.PutUint16(value[2:4], uint16(a.Port^magicCookie>>16))
 	xor.XorBytes(value[4:4+len(ip)], ip, xorValue)
 	m.Add(t, value[:4+len(ip)])
